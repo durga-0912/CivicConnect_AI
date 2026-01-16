@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 import pandas as pd
+import os
 
 app = Flask(__name__)
 app.secret_key = "civicconnect_secret"
@@ -8,6 +9,16 @@ DATA_FILE = "data/complaints.csv"
 
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
+
+# ---------- SAFE FILE CREATION ----------
+if not os.path.exists("data"):
+    os.makedirs("data")
+
+if not os.path.exists(DATA_FILE):
+    df = pd.DataFrame(columns=[
+        "id", "description", "location", "category", "priority", "status"
+    ])
+    df.to_csv(DATA_FILE, index=False)
 
 # ---------- AI LOGIC ----------
 def ai_classify(text):
@@ -18,7 +29,7 @@ def ai_classify(text):
         return "Water", "Medium"
     elif "electric" in text or "power" in text:
         return "Electricity", "High"
-    elif "garbage" in text or "waste" in text:
+    elif "garbage" in text:
         return "Sanitation", "Low"
     else:
         return "General", "Low"
@@ -38,28 +49,20 @@ def raise_complaint():
         category, priority = ai_classify(desc)
         df = pd.read_csv(DATA_FILE)
 
-        if df.empty:
-            new_id = 1
-        else:
-            new_id = int(df["id"].max()) + 1
+        new_id = 1 if df.empty else int(df["id"].max()) + 1
 
         df.loc[len(df)] = [
             new_id, desc, location, category, priority, "Pending"
         ]
         df.to_csv(DATA_FILE, index=False)
 
-        return render_template(
-            "success.html",
-            cid=new_id,
-            category=category,
-            priority=priority
-        )
+        return render_template("success.html", cid=new_id)
 
     return render_template("raise.html")
 
 # ---------- TRACK STATUS ----------
 @app.route("/track", methods=["GET", "POST"])
-def track_status():
+def track():
     status = None
     cid = None
 
@@ -67,9 +70,9 @@ def track_status():
         cid = request.form["complaint_id"]
         df = pd.read_csv(DATA_FILE)
 
-        result = df[df["id"].astype(str) == cid]
-        if not result.empty:
-            status = result.iloc[0]["status"]
+        row = df[df["id"].astype(str) == cid]
+        if not row.empty:
+            status = row.iloc[0]["status"]
         else:
             status = "Invalid Complaint ID"
 
@@ -96,9 +99,12 @@ def admin():
     df = pd.read_csv(DATA_FILE)
     return render_template("admin.html", data=df.to_dict(orient="records"))
 
-# ---------- RESOLVE ----------
+# ---------- RESOLVE COMPLAINT ----------
 @app.route("/resolve/<int:cid>")
 def resolve(cid):
+    if not session.get("admin"):
+        return redirect(url_for("admin_login"))
+
     df = pd.read_csv(DATA_FILE)
     df.loc[df["id"] == cid, "status"] = "Resolved"
     df.to_csv(DATA_FILE, index=False)
@@ -110,5 +116,6 @@ def logout():
     session.pop("admin", None)
     return redirect(url_for("home"))
 
+# ---------- RUN ----------
 if __name__ == "__main__":
     app.run(debug=True)
