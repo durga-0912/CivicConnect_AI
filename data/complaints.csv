@@ -3,3 +3,5 @@ id,description,location,category,priority,status
 2,Traffic Signal Not Functioning,Gandhi Street,General,Low,Pending
 3,"Street Light Not Working
 ",School Zone,General,Low,Resolved
+4,"road is damaged near school
+",Gandhi Street,Road,High,Pending
