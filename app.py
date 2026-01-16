@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session
+
 import pandas as pd
 
 app = Flask(__name__)
@@ -111,3 +112,20 @@ def logout():
 
 if __name__ == "__main__":
     app.run(debug=True)
+@app.route("/track", methods=["GET", "POST"])
+def track_status():
+    status = None
+    cid = None
+
+    if request.method == "POST":
+        cid = request.form["complaint_id"]
+
+        df = pd.read_csv(DATA_FILE)
+        result = df[df["id"].astype(str) == cid]
+
+        if not result.empty:
+            status = result.iloc[0]["status"]
+        else:
+            status = "Invalid Complaint ID"
+
+    return render_template("track.html", status=status, cid=cid)
